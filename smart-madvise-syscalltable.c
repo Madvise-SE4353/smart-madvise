@@ -7,7 +7,7 @@
 #include <linux/kprobes.h>
 
 MODULE_AUTHOR("Haocheng Wang");
-MODULE_DESCRIPTION("Customized Madvise");
+MODULE_DESCRIPTION("Smart Madvise");
 MODULE_LICENSE("GPL");
 
 unsigned long kaddr_lookup_name(const char *fname_raw)

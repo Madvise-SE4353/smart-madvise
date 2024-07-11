@@ -2,7 +2,7 @@
 #include <asm/ptrace.h>
 
 MODULE_AUTHOR("Haocheng Wang");
-MODULE_DESCRIPTION("Customized Madvise");
+MODULE_DESCRIPTION("Smart Madvise");
 MODULE_LICENSE("GPL");
 
 static int sys_madvise_kprobe_pre_handler(struct kprobe *p, struct pt_regs *regs)

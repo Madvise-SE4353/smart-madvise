@@ -1,5 +1,6 @@
 #include <linux/kprobes.h>
 #include <asm/ptrace.h>
+#include "myprintk.h"
 
 MODULE_AUTHOR("Haocheng Wang");
 MODULE_DESCRIPTION("Smart Madvise");
@@ -8,8 +9,10 @@ MODULE_LICENSE("GPL");
 static int sys_madvise_kprobe_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
     struct pt_regs *madvise_regs = (struct pt_regs *)(regs->di);
-    printk("call customized madvise, di 0x%lX, si 0x%lX, dx %lu\n", madvise_regs->di, madvise_regs->si, madvise_regs->dx);
-    madvise_regs->dx = 0;
+    myprintk();
+    printk("process %d call customized madvise, rip 0x%lX and 0x%lX, addr 0x%lX ,di 0x%lX, si 0x%lX, dx %lu\n",current->pid ,regs->ip,madvise_regs->ip,(unsigned long)(p->addr), madvise_regs->di, madvise_regs->si, madvise_regs->dx);
+    // madvise_regs->dx = 0;
+    
     return 0;
 }
 

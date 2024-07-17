@@ -2,6 +2,8 @@
 #include <asm/ptrace.h>
 #include "myprintk.h"
 
+
+
 void myprintk(){
-    printk("HIHIHIHIHIHI\n");
+    printk("do_madivse myprintk\n");
 }

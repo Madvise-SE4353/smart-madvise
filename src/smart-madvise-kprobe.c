@@ -5,12 +5,20 @@
 #include <linux/socket.h>
 #include <linux/kallsyms.h>
 #include <linux/kprobes.h>
-
+#include <linux/cdev.h>
+#include <linux/uaccess.h> 
 #include "myprintk.h"
+#include "smart_madvise_ioctl.h"
 
 MODULE_AUTHOR("Haocheng Wang");
 MODULE_DESCRIPTION("Smart Madvise");
 MODULE_LICENSE("GPL");
+
+static int madvise_cnt;
+static struct cdev ioctl_demo_cdev; 
+static int ioctl_demo_major;
+static struct class *cls;
+static const unsigned int num_of_dev = 1; // const?
 
 unsigned long kaddr_lookup_name(const char *fname_raw)
 {
@@ -92,16 +100,17 @@ syscall_wrapper original_madvise;
 
 static int sys_madvise_kprobe_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
-    struct pt_regs *madvise_regs = (struct pt_regs *)(regs->di);
+    // struct pt_regs *madvise_regs = (struct pt_regs *)(regs->di);
     myprintk();
-    printk("process %d call customized madvise, rip 0x%lX and 0x%lX, addr 0x%lX ,di 0x%lX, si 0x%lX, dx %lu\n",current->pid ,regs->ip,madvise_regs->ip,(unsigned long)(p->addr), madvise_regs->di, madvise_regs->si, madvise_regs->dx);
+    // printk("process %d call customized madvise, rip 0x%lX and 0x%lX, addr 0x%lX ,di 0x%lX, si 0x%lX, dx %lu\n",current->pid ,regs->ip,madvise_regs->ip,(unsigned long)(p->addr), madvise_regs->di, madvise_regs->si, madvise_regs->dx);
     
     // we can manually call the madvise system call by the function point we get from sys_call_table
     // although sys_call_table isn't used in new linux kernel version, the data still exists in kernel memory space and has correct function points 
-    printk("return value: %d\n",original_madvise(madvise_regs));
+    // printk("return value: %d\n",original_madvise(madvise_regs));
 
     // we can modify the first argument of subsequent madvise system call so it will can't have an effect on memory   
-    madvise_regs->di = 1;
+    // madvise_regs->di = 1;
+    madvise_cnt += 1;
     
     return 0;
 }
@@ -111,10 +120,75 @@ struct kprobe syscall_kprobe = {
     .pre_handler = sys_madvise_kprobe_pre_handler,
 };
 
+static long smart_madvise_ioctl(struct file *filp, unsigned int cmd, 
+                             unsigned long arg) 
+{
+    // struct ioctl_demo_data *ioctl_data = &ioctl_demo_static_data;
+    // struct ioctl_demo_data *ioctl_data = filp->private_data;
+    int retval = 0; 
+    // int val;
+    struct ioctl_demo_arg data; 
+    memset(&data, 0, sizeof(data)); 
+    switch (cmd) { 
+    case IOCTL_DEMO_VALGET_NUM:
+        retval = put_user(madvise_cnt, (int __user *)arg);
+        break;
+    case IOCTL_DEMO_VALSET_NUM:
+        retval = get_user(madvise_cnt, (int __user *)arg);
+        break;
+    default:
+        retval = -ENOTTY;
+        break;
+    }
+done:
+    return retval;
+}
+
+static int smart_madvise_open(struct inode *inode, struct file *filp) 
+{ 
+    // struct ioctl_demo_data *ioctl_data; 
+ 
+    pr_alert("%s call.\n", __func__); 
+    // ioctl_data = kmalloc(sizeof(struct ioctl_demo_data), GFP_KERNEL); 
+ 
+    // if (ioctl_data == NULL) 
+    //     return -ENOMEM; 
+ 
+    // rwlock_init(&ioctl_data->lock); 
+    // ioctl_data->val = 0xFF; 
+    // filp->private_data = ioctl_data; 
+ 
+    return 0; 
+} 
+
+static int smart_madvise_close(struct inode *inode, struct file *filp) 
+{ 
+    pr_alert("%s call.\n", __func__); 
+ 
+    // if (filp->private_data) { 
+    //     kfree(filp->private_data); 
+    //     filp->private_data = NULL; 
+    // } 
+ 
+    return 0; 
+} 
+
+static struct file_operations fops = { 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) 
+    .owner = THIS_MODULE, 
+#endif 
+    .open = smart_madvise_open, 
+    .release = smart_madvise_close, 
+    // .read = test_ioctl_read, 
+    .unlocked_ioctl = smart_madvise_ioctl, 
+}; 
+
 static int __init my_module_init(void)
 {
     int err;
-
+    dev_t dev; 
+    int alloc_ret = -1; 
+    int cdev_ret = -1; 
     printk("my_module_init\n");
     err = register_kprobe(&syscall_kprobe);
     if (err)
@@ -122,20 +196,41 @@ static int __init my_module_init(void)
         pr_err("register_kprobe() failed: %d\n", err);
         return err;
     }
-
-
+    alloc_ret = alloc_chrdev_region(&dev, 0, num_of_dev, IOCTL_DEMO_DRIVER_NAME); 
+    if (alloc_ret) 
+        goto error; 
+    ioctl_demo_major = MAJOR(dev); 
+    cdev_init(&ioctl_demo_cdev, &fops); 
+    cdev_ret = cdev_add(&ioctl_demo_cdev, dev, num_of_dev); 
+    pr_alert("%s driver(major: %d) installed.\n", IOCTL_DEMO_DRIVER_NAME, 
+             ioctl_demo_major); 
+    cls = class_create(IOCTL_DEMO_DEVICE_FILE_NAME); 
+    device_create(cls, NULL, dev, NULL, IOCTL_DEMO_DEVICE_FILE_NAME);
+    pr_info("Device created on /dev/%s\n", IOCTL_DEMO_DEVICE_FILE_NAME); 
+    // 改syscall表还留着吗？
     sys_call_table_addr = kaddr_lookup_name("sys_call_table");
     printk("sys_call_table@%lx\n", sys_call_table_addr);
     original_madvise = ((syscall_wrapper *)sys_call_table_addr)[__NR_madvise];
     printk("original_madvise = %p\n", original_madvise);
 
     return 0;
+error:
+    if (cdev_ret == 0) 
+        cdev_del(&ioctl_demo_cdev); 
+    if (alloc_ret == 0) 
+        unregister_chrdev_region(dev, num_of_dev); 
+    return -1;
 }
 
 static void __exit my_module_exit(void)
 {
     printk("my_module_exit\n");
     unregister_kprobe(&syscall_kprobe);
+    dev_t dev = MKDEV(ioctl_demo_major, 0); 
+    device_destroy(cls, dev); 
+    class_destroy(cls); 
+    cdev_del(&ioctl_demo_cdev); 
+    unregister_chrdev_region(dev, num_of_dev); 
 }
 
 module_init(my_module_init);

@@ -217,15 +217,21 @@ static int smart_madvise_close(struct inode *inode, struct file *filp)
     return 0;
 }
 
-static struct file_operations fops = {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
-    .owner = THIS_MODULE,
-#endif
-    .open = smart_madvise_open,
-    .release = smart_madvise_close,
-    // .read = test_ioctl_read,
-    .unlocked_ioctl = smart_madvise_ioctl,
-};
+static struct file_operations fops = { 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) 
+    .owner = THIS_MODULE, 
+#endif 
+    .open = smart_madvise_open, 
+    .release = smart_madvise_close, 
+    // .read = test_ioctl_read, 
+    .unlocked_ioctl = smart_madvise_ioctl, 
+}; 
+
+static int smart_madvise_uevent(const struct device *dev, struct kobj_uevent_env *env)
+{
+    add_uevent_var(env, "DEVMODE=%#o", 0666);
+    return 0;
+}
 
 static int __init my_module_init(void)
 {
@@ -265,6 +271,7 @@ static int __init my_module_init(void)
     pr_alert("%s driver(major: %d) installed.\n", IOCTL_DEMO_DRIVER_NAME,
              ioctl_demo_major);
     cls = class_create(IOCTL_DEMO_DEVICE_FILE_NAME);
+    cls->dev_uevent = smart_madvise_uevent;
     device_create(cls, NULL, dev, NULL, IOCTL_DEMO_DEVICE_FILE_NAME);
     pr_info("Device created on /dev/%s\n", IOCTL_DEMO_DEVICE_FILE_NAME);
 

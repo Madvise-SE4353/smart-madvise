@@ -57,7 +57,7 @@ static void execute_madvise(task_item *task_ptr)
     regs.si = task_ptr->len;
     regs.dx = task_ptr->task_flag;
     int result = original_madvise(&regs);
-    printk("execute_madvise, di 0x%lX, si %ld, dx %d, result %d\n", regs.di, regs.si, regs.dx, result);
+    printk("execute_madvise, di 0x%lX, si %ld, dx %ld, result %d\n", regs.di, regs.si, regs.dx, result);
 }
 
 static void execute_mlock(task_item *task_ptr)

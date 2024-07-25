@@ -170,6 +170,7 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             break;
         }
         printk("start 0x%lX, length %ld\n", obj.start, obj.len);
+
         add_task(&task_map_global, new_pid, obj.start, obj.len, SMART_MADVISE_TASK_MADVISE, 1);
         break;
     }
@@ -227,6 +228,12 @@ static struct file_operations fops = {
     .unlocked_ioctl = smart_madvise_ioctl,
 };
 
+static int smart_madvise_uevent(const struct device *dev, struct kobj_uevent_env *env)
+{
+    add_uevent_var(env, "DEVMODE=%#o", 0666);
+    return 0;
+}
+
 static int __init my_module_init(void)
 {
     int err;
@@ -265,6 +272,7 @@ static int __init my_module_init(void)
     pr_alert("%s driver(major: %d) installed.\n", IOCTL_DEMO_DRIVER_NAME,
              ioctl_demo_major);
     cls = class_create(IOCTL_DEMO_DEVICE_FILE_NAME);
+    cls->dev_uevent = smart_madvise_uevent;
     device_create(cls, NULL, dev, NULL, IOCTL_DEMO_DEVICE_FILE_NAME);
     pr_info("Device created on /dev/%s\n", IOCTL_DEMO_DEVICE_FILE_NAME);
 

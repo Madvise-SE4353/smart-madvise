@@ -10,6 +10,7 @@
 #include "smart_madvise_ioctl.h"
 #include "executor.h"
 #include "global_map.h"
+#include "daemon.h"
 
 MODULE_AUTHOR("Smart Madvise Group");
 MODULE_DESCRIPTION("Smart Madvise");
@@ -281,6 +282,10 @@ static int __init my_module_init(void)
     original_madvise = ((syscall_wrapper *)sys_call_table_addr)[__NR_madvise];
     printk("original_madvise = %p\n", original_madvise);
 
+    if (smart_madvise_start_daemon() != 0) {
+        goto error;
+    }
+
     return 0;
 error:
     if (cdev_ret == 0)
@@ -304,6 +309,8 @@ static void __exit my_module_exit(void)
     class_destroy(cls);
     cdev_del(&ioctl_demo_cdev);
     unregister_chrdev_region(dev, num_of_dev);
+
+    smart_madvise_stop_daemon();
 }
 
 module_init(my_module_init);

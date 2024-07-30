@@ -24,6 +24,18 @@ static struct proc_dir_entry *proc_file;
 static int hash_pid(u32 pid) {
     return hash_long(pid, 8) % HASH_SIZE;
 }
+static int target_pid = -1;
+static unsigned long start_address = 0;
+static unsigned long length = 0;
+
+module_param(target_pid, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(target_pid, "PID of the process to track sequential page faults.");
+
+module_param(start_address, ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(start_address, "Start address of the memory range to monitor.");
+
+module_param(length, ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(length, "Length of the memory range to monitor.");
 
 // Kprobe pre-handler: called just before the probed instruction is executed
 static int handle_pre_fault(struct kprobe *p, struct pt_regs *regs) {
@@ -31,23 +43,31 @@ static int handle_pre_fault(struct kprobe *p, struct pt_regs *regs) {
     unsigned long address = regs->si;
     unsigned int flags = regs->dx;
     u32 pid = current->pid;
-    int idx = hash_pid(pid);
-    u64 page_addr = address >> 12;
-    // filter here 
-    if (pid_data[idx].last_addr + 1 == page_addr) {
-        pid_data[idx].access_count++;
-    }
-    // else
-    //     pid_data[idx].access_count
-    pid_data[idx].last_addr = page_addr;
-    pid_data[idx].pid = pid;
 
+    if (pid == target_pid){
+         int idx = hash_pid(pid);
+        u64 page_addr = address >> 12; // / PAGE_SIZE) * PAGE_SIZE; //
+        printk("Page Address: %lx\n: #accesse %d", page_addr, pid_data[idx].access_count);
+        // filter here 
+    if ( address >= start_address && address < start_address + length){
+        //  printk(KERN_INFO "PID: %d, Target PID: %d\n", pid, target_pid);
+       
+        if (pid_data[idx].last_addr + 1 == page_addr) {
+            pid_data[idx].access_count++;
+        }
+
+        pid_data[idx].last_addr = page_addr;
+        pid_data[idx].pid = pid;
+    }
+    }
+   
     return 0;
 }
 
 // Read function for the proc file
 static int page_faults_proc_show(struct seq_file *m, void *v) {
     int i;
+    seq_printf(m, "Tracking sequential page faults for PID: %d\n", target_pid);
     for (i = 0; i < HASH_SIZE; i++) {
         if (pid_data[i].access_count != 0) {
             seq_printf(m, "PID %u: Sequential Access Count: %llu\n", pid_data[i].pid, pid_data[i].access_count);
@@ -103,4 +123,3 @@ module_exit(kprobe_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Vahagn Ghazaryan");
 MODULE_DESCRIPTION("Kernel module using kprobes to track sequential page faults and expose data through procfs.");
-// TODO consider address, filter pid, start and length of the page

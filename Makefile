@@ -1,5 +1,6 @@
-obj-m += smart-madvise.o pagecache_collector.o
-smart-madvise-objs+= ./src/smart-madvise.o ./src/executor.o ./src/global_map.o ./src/pagecache_collector
+obj-m += smart-madvise.o 
+smart-madvise-objs += ./src/smart-madvise.o ./src/pagecache_collector.o ./src/executor.o ./src/global_map.o
+
 # obj-m += smart-madvise-syscalltable.o
 ccflags-y := -I${PWD}/include
 KVERSION = $(shell uname -r)

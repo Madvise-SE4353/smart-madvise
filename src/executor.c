@@ -16,7 +16,7 @@ void schedule_post_handler(struct kprobe *p, struct pt_regs *regs, unsigned long
 {
     if (current->pid == register_pid)
     {
-        printk("schedule to register_pid %d\n", register_pid);
+        // printk("schedule to register_pid %d\n", register_pid);
         task_item_node *list = get_task_list(&task_map_global, register_pid);
         execute_task_list(list);
         release_task_list(list);

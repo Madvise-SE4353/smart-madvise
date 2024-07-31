@@ -48,32 +48,6 @@ struct kprobe syscall_kprobe = {
     .pre_handler = sys_madvise_kprobe_pre_handler,
 };
 
-static int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
-    struct vm_area_struct *vma = (struct vm_area_struct *)regs->di;
-    unsigned long address = regs->si;
-    unsigned int flags = regs->dx;
-    u32 pid = current->pid;
-
-    if (pid == target_pid_collect){
-         int idx = hash_pid(pid);
-        u64 page_addr = address >> 12; // / PAGE_SIZE) * PAGE_SIZE; //
-    printk("Page Address: %lx\n: #accesse %llu", address, pid_data[idx].access_count);
-        // filter here 
-    if ( address >= start_address_collect && address < start_address_collect + length_collect){
-        //  printk(KERN_INFO "PID: %d, Target PID: %d\n", pid, target_pid);
-       
-        if (pid_data[idx].last_addr + 1 == page_addr) {
-            pid_data[idx].access_count++;
-        }
-
-        pid_data[idx].last_addr = page_addr;
-        pid_data[idx].pid = pid;
-    }
-    }
-    // printk( "handle_pre_pagefault triggered\n");
-
-    return 0;
-}
 struct kprobe pagecache_kprobe = {
     .symbol_name = "handle_mm_fault",
     .pre_handler = handle_pre_pagefault
@@ -323,7 +297,12 @@ static int __init my_module_init(void)
     cdev_ret = cdev_add(&ioctl_demo_cdev, dev, num_of_dev);
     pr_alert("%s driver(major: %d) installed.\n", IOCTL_DEMO_DRIVER_NAME,
              ioctl_demo_major);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
     cls = class_create(THIS_MODULE, IOCTL_DEMO_DEVICE_FILE_NAME);
+#else
+    cls = class_create(IOCTL_DEMO_DEVICE_FILE_NAME);
+#endif
+
     device_create(cls, NULL, dev, NULL, IOCTL_DEMO_DEVICE_FILE_NAME);
     pr_info("Device created on /dev/%s\n", IOCTL_DEMO_DEVICE_FILE_NAME);
 

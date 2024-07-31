@@ -1,3 +1,5 @@
+#ifndef _PAGECACHE_COLLECTOR_H
+#define _PAGECACHE_COLLECTOR_H
 
 #include <linux/types.h>
 #include <linux/module.h>
@@ -20,11 +22,14 @@ struct pid_info {
     u64 last_addr;
     u64 access_count;
     u32 pid;
+    bool tracked;
 };
 
 
-static int hash_pid(u32 pid) {
+int hash_pid(u32 pid) {
     return hash_long(pid, 8) % HASH_SIZE;
 }
-// static int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs);
-// void print_pid_data(void);
+int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs);
+void print_pid_data(void);
+
+#endif

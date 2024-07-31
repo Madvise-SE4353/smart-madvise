@@ -15,7 +15,7 @@ extern unsigned long start_address_collect;
 extern size_t length_collect;
 extern struct pid_info pid_data[HASH_SIZE];
 
-static int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
+int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
     struct vm_area_struct *vma = (struct vm_area_struct *)regs->di;
     unsigned long address = regs->si;
     unsigned int flags = regs->dx;
@@ -42,14 +42,14 @@ static int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
     return 0;
 }
 
-// void print_pid_data(void) {
-//     int i;
-//     for (i = 0; i < HASH_SIZE; i++) {
-//         if  (pid_data[i].access_count != 0) {
-//             printk( "PID %u: Last Addr: %llu, Access Count: %llu\n",
-//                    pid_data[i].pid,
-//                    (unsigned long )pid_data[i].last_addr,
-//                    (unsigned long )pid_data[i].access_count);
-//         }
-//     }
-// }
+void print_pid_data(void) {
+    int i;
+    for (i = 0; i < HASH_SIZE; i++) {
+        if  (pid_data[i].access_count != 0) {
+            printk( "PID %u: Last Addr: %llu, Access Count: %llu\n",
+                   pid_data[i].pid,
+                   (unsigned long )pid_data[i].last_addr,
+                   (unsigned long )pid_data[i].access_count);
+        }
+    }
+}

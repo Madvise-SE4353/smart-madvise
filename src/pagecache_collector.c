@@ -42,10 +42,12 @@ int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
             if (current_pid_info->last_addr + 1 == page_addr) {
                 current_pid_info->access_count++;
             }
+            pr_info("smart-madvise-collector: tracked process and address, pid: %d, counter: %d\n", current_pid_info->pid, current_pid_info->access_count);
+            // DO STH HERE
         }
         pid_data[idx].last_addr = page_addr;
     }
-    printk( "handle_pre_pagefault triggered\n");
+    // printk( "handle_pre_pagefault triggered\n");
 
     return 0;
 }

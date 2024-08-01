@@ -14,6 +14,7 @@ static void execute_mlock(task_item *task_ptr);
 
 void schedule_post_handler(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
 {
+    
     if (current->pid == register_pid)
     {
         // printk("schedule to register_pid %d\n", register_pid);

@@ -192,6 +192,7 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         if (current_pid_info->tracked && current_pid_info->pid != new_pid){
             return -EINVAL;
         }
+        current_pid_info->pid = new_pid;
         current_pid_info->tracked = true;
         current_pid_info->start_address_collect = obj.start;
         current_pid_info->length_collect = obj.len;
@@ -205,8 +206,8 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     }
     case IOCTL_DEMO_UNREGISTER_NUM:
     {
-        printk("unregister pid %d\n", register_pid);
         pid_t new_pid = current->pid;
+        printk("unregister pid %d\n", new_pid);
         int idx = hash_pid(new_pid);
         struct pid_info *current_pid_info = &pid_data[idx];
         if (current_pid_info->tracked) {
@@ -275,7 +276,7 @@ static int __init my_module_init(void)
     printk("my_module_init\n");
 
     // init some global variables
-    register_pid = 0;
+    register_pid = 0; // TODO: remove this
 
     // init task map work
     init_task_map(&task_map_global);

@@ -18,12 +18,17 @@ clean:
 # 	@echo "Cleaning up build artifacts..."
 # 	$(MAKE) -C /lib/modules/$(KVERSION)/build M=$(shell pwd) clean
 
-install-collector:
+install:
 	@echo "Installing the kernel modules..."
-	sudo insmod src/pagecache_collector.ko
+	sudo insmod smart-madvise.ko
 
-remove-collector:
+remove:
 	@echo "Removing the kernel modules..."
-	sudo rmmod pagecache_collector
+	sudo rmmod smart_madvise
+
+deploy:
+	$(MAKE) all
+	$(MAKE) remove
+	$(MAKE) install
 
 # .PHONY: build-collector clean-collector install-collector remove-collector

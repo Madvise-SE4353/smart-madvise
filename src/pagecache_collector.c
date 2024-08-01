@@ -10,32 +10,40 @@
 #include <linux/seq_file.h>
 #include "pagecache_collector.h"
 
-extern pid_t target_pid_collect;
-extern unsigned long start_address_collect;
-extern size_t length_collect;
+// extern pid_t target_pid_collect;
+// extern unsigned long start_address_collect;
+// extern size_t length_collect;
 extern struct pid_info pid_data[HASH_SIZE];
+
+int hash_pid(u32 pid)
+{
+    return hash_32(pid, 8) % HASH_SIZE;
+}
 
 int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
     struct vm_area_struct *vma = (struct vm_area_struct *)regs->di;
     unsigned long address = regs->si;
     unsigned int flags = regs->dx;
     u32 pid = current->pid;
+    int idx = hash_pid(pid);
+    struct pid_info *current_pid_info = &pid_data[idx];
 
-    if (pid == target_pid_collect){
-         int idx = hash_pid(pid);
-        u64 page_addr = address >> 12; // / PAGE_SIZE) * PAGE_SIZE; //
-    printk("Page Address: %llu\n: #accesse %llu", page_addr, pid_data[idx].access_count);
-        // filter here 
-    if ( address >= start_address_collect && address < start_address_collect + length_collect){
-        //  printk(KERN_INFO "PID: %d, Target PID: %d\n", pid, target_pid);
-       
-        if (pid_data[idx].last_addr + 1 == page_addr) {
-            pid_data[idx].access_count++;
-        }
-
-        pid_data[idx].last_addr = page_addr;
-        pid_data[idx].pid = pid;
+    if (current_pid_info->pid != pid){
+        return 0;
     }
+
+    if (current_pid_info->tracked) {
+        u64 page_addr = address >> 12;
+        if (current_pid_info->last_addr + 1 == page_addr) {
+            current_pid_info->access_count++;
+        }
+        if ( address >= current_pid_info->start_address_collect 
+          && address < current_pid_info->start_address_collect + current_pid_info->length_collect){
+            if (current_pid_info->last_addr + 1 == page_addr) {
+                current_pid_info->access_count++;
+            }
+        }
+        pid_data[idx].last_addr = page_addr;
     }
     printk( "handle_pre_pagefault triggered\n");
 

@@ -8,6 +8,7 @@
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
 #include <linux/delay.h>
+#include <linux/spinlock.h>
 
 #include "smart_madvise_ioctl.h"
 #include "executor.h"
@@ -31,9 +32,9 @@ unsigned long sys_call_table_addr;
 syscall_wrapper original_madvise;
 
 // collector global variables
-pid_t target_pid_collect = -1;
-unsigned long start_address_collect = 0;
-size_t length_collect  = 0;
+// pid_t target_pid_collect = -1;
+// unsigned long start_address_collect = 0;
+// size_t length_collect  = 0;
 struct pid_info pid_data[HASH_SIZE];
 
 // other global variables
@@ -174,7 +175,7 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     {
         pid_t new_pid = current->pid;
         printk("register pid %d\n", new_pid);
-        register_pid = new_pid;
+        // register_pid = new_pid;
         smart_madvise_ioctl_args obj;
         unsigned long copied = copy_from_user(&obj, (const void __user *)arg, sizeof(smart_madvise_ioctl_args));
         if (copied)
@@ -186,10 +187,15 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         printk("start 0x%lX, length %ld\n", obj.start, obj.len);
         
         // TODO put into thread, make thread safe
-        target_pid_collect = new_pid;
-        start_address_collect = obj.start;
-        length_collect = obj.len;
-        printk("collecting data for pid %d\n", target_pid_collect);
+        int idx = hash_pid(new_pid);
+        struct pid_info *current_pid_info = &pid_data[idx];
+        if (current_pid_info->tracked && current_pid_info->pid != new_pid){
+            return -EINVAL;
+        }
+        current_pid_info->tracked = true;
+        current_pid_info->start_address_collect = obj.start;
+        current_pid_info->length_collect = obj.len;
+        printk("collecting data for pid %d\n", new_pid);
         // msleep(10000);  // sleeps for the specified number of milliseconds
 
         // print_pid_data();
@@ -200,7 +206,16 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     case IOCTL_DEMO_UNREGISTER_NUM:
     {
         printk("unregister pid %d\n", register_pid);
-        register_pid = 0;
+        pid_t new_pid = current->pid;
+        int idx = hash_pid(new_pid);
+        struct pid_info *current_pid_info = &pid_data[idx];
+        if (current_pid_info->tracked) {
+            if (current_pid_info->pid != new_pid) {
+                return -EINVAL;
+            }
+            current_pid_info->tracked = false;
+            current_pid_info->pid = 0;
+        }
         break;
     }
     default:

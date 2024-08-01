@@ -19,16 +19,16 @@
 #define PID_DATA_SIZE 256
 
 struct pid_info {
+    bool tracked;
     u64 last_addr;
     u64 access_count;
+    u64 start_address_collect;
+    size_t length_collect;
     u32 pid;
-    bool tracked;
 };
 
 
-int hash_pid(u32 pid) {
-    return hash_long(pid, 8) % HASH_SIZE;
-}
+int hash_pid(u32 pid);
 int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs);
 void print_pid_data(void);
 

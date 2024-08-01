@@ -39,7 +39,7 @@ struct pid_info pid_data[HASH_SIZE];
 
 // other global variables
 global_task_map task_map_global;
-pid_t register_pid;
+// pid_t register_pid;
 
 unsigned long kaddr_lookup_name(const char *fname_raw);
 static int sys_madvise_kprobe_pre_handler(struct kprobe *p, struct pt_regs *regs);
@@ -276,7 +276,7 @@ static int __init my_module_init(void)
     printk("my_module_init\n");
 
     // init some global variables
-    register_pid = 0; // TODO: remove this
+    // register_pid = 0;
 
     // init task map work
     init_task_map(&task_map_global);

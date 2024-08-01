@@ -30,6 +30,8 @@ typedef struct __global_task_map
     task_item_node **task_map;
 } global_task_map;
 
+extern global_task_map task_map_global;
+
 int init_task_map(global_task_map *task_map_ptr);
 int add_task(global_task_map *task_map_ptr, pid_t pid, unsigned long start, size_t len, task_class class, int flag);
 task_item_node *get_task_list(global_task_map *task_map_ptr, pid_t pid);

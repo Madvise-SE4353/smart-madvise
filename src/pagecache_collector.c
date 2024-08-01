@@ -9,6 +9,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include "pagecache_collector.h"
+#include "global_map.h"
 
 // extern pid_t target_pid_collect;
 // extern unsigned long start_address_collect;
@@ -42,12 +43,17 @@ int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
             if (current_pid_info->last_addr + 1 == page_addr) {
                 current_pid_info->access_count++;
             }
-            pr_info("smart-madvise-collector: tracked process and address, pid: %d, counter: %d\n", current_pid_info->pid, current_pid_info->access_count);
+            pr_info("smart-madvise-collector: tracked process and address, pid: %d, counter: %d\n", pid, current_pid_info->access_count);
             // DO STH HERE
+            if(current_pid_info->access_count > 1000){
+                pr_info("smart-madvise: switching to MADV_SEQUENTIAL, deregistering PID %d\n", pid);
+                add_task(&task_map_global, current_pid_info->pid, current_pid_info->start_address_collect, current_pid_info->length_collect, SMART_MADVISE_TASK_MADVISE, 2);
+                current_pid_info->tracked = false;
+            }
         }
         pid_data[idx].last_addr = page_addr;
     }
-    // printk( "handle_pre_pagefault triggered\n");
+    printk( "handle_pre_pagefault triggered\n");
 
     return 0;
 }

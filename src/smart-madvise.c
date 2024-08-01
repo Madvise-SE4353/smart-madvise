@@ -59,6 +59,29 @@ struct kprobe schdule_kprobe = {
     .post_handler = schedule_post_handler,
 };
 
+int smart_madvise_deregister_pid(pid_t pid){
+    int idx = hash_pid(pid);
+    if (pid_data[idx].tracked && pid_data[idx].pid == pid){
+        pr_info("smart-madvise: pid: %d deregistered", pid);
+        pid_data[idx].tracked = false;
+        pid_data[idx].pid = 0;
+        return 0;
+    }
+    return -1;
+}
+
+int exit_pre_hander(struct kprobe *p, struct pt_regs *regs){
+    pid_t pid = current->pid;
+    smart_madvise_deregister_pid(pid);
+    
+    return 0;
+}
+
+struct kprobe exit_kprobe = {
+    .symbol_name = "do_exit",
+    .pre_handler = exit_pre_hander,
+};
+
 unsigned long kaddr_lookup_name(const char *fname_raw)
 {
     int i;
@@ -196,6 +219,7 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         current_pid_info->tracked = true;
         current_pid_info->start_address_collect = obj.start;
         current_pid_info->length_collect = obj.len;
+        current_pid_info->access_count = 0;
         printk("collecting data for pid %d\n", new_pid);
         // msleep(10000);  // sleeps for the specified number of milliseconds
 
@@ -208,14 +232,8 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     {
         pid_t new_pid = current->pid;
         printk("unregister pid %d\n", new_pid);
-        int idx = hash_pid(new_pid);
-        struct pid_info *current_pid_info = &pid_data[idx];
-        if (current_pid_info->tracked) {
-            if (current_pid_info->pid != new_pid) {
-                return -EINVAL;
-            }
-            current_pid_info->tracked = false;
-            current_pid_info->pid = 0;
+        if (smart_madvise_deregister_pid(new_pid) != 0){
+            return -EINVAL;
         }
         break;
     }
@@ -304,6 +322,14 @@ static int __init my_module_init(void)
         pr_err("register_kprobe() kprobe failed: %d\n", err);
         return err;
     }
+
+    err =  register_kprobe(&exit_kprobe); 
+    if (err)
+    {
+        pr_err("register_kprobe() kprobe failed: %d\n", err);
+        return err;
+    }
+
     // init ioctl work
     alloc_ret = alloc_chrdev_region(&dev, 0, num_of_dev, IOCTL_DEMO_DRIVER_NAME);
     if (alloc_ret)
@@ -346,6 +372,7 @@ static void __exit my_module_exit(void)
     unregister_kprobe(&syscall_kprobe);
     unregister_kprobe(&schdule_kprobe);
     unregister_kprobe(&pagecache_kprobe);
+    unregister_kprobe(&exit_kprobe);
 
     // ioctl work
     dev_t dev = MKDEV(ioctl_demo_major, 0);

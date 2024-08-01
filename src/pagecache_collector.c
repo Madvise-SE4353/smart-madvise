@@ -47,12 +47,13 @@ int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
             // DO STH HERE
             switch(current_pid_info->state) {
                 case SMART_MADVISE_STATE_INITIAL:
-                    if(current_pid_info->access_count > 1000){
+                    if(current_pid_info->access_count > 200){
                         pr_info("smart-madvise: switching to MADV_SEQUENTIAL, deregistering PID %d\n", pid);
                         add_task(&task_map_global, current_pid_info->pid, current_pid_info->start_address_collect, current_pid_info->length_collect, SMART_MADVISE_TASK_MADVISE, 2);
                         current_pid_info->state = SMART_MADVISE_STATE_SEQUENTIAL;
                     }
                     break;
+                // TODO: detect random access
                 default:
                     break;
             }

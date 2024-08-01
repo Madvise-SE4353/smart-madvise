@@ -209,7 +209,6 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         }
         printk("start 0x%lX, length %ld\n", obj.start, obj.len);
         
-        // TODO put into thread, make thread safe
         int idx = hash_pid(new_pid);
         struct pid_info *current_pid_info = &pid_data[idx];
         if (current_pid_info->tracked && current_pid_info->pid != new_pid){

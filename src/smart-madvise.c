@@ -215,11 +215,7 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         if (current_pid_info->tracked && current_pid_info->pid != new_pid){
             return -EINVAL;
         }
-        current_pid_info->pid = new_pid;
-        current_pid_info->tracked = true;
-        current_pid_info->start_address_collect = obj.start;
-        current_pid_info->length_collect = obj.len;
-        current_pid_info->access_count = 0;
+        reset_pid_data(current_pid_info, new_pid, obj.start, obj.len);
         printk("collecting data for pid %d\n", new_pid);
         // msleep(10000);  // sleeps for the specified number of milliseconds
 

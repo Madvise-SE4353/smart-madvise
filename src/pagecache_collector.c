@@ -43,17 +43,24 @@ int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
             if (current_pid_info->last_addr + 1 == page_addr) {
                 current_pid_info->access_count++;
             }
-            pr_info("smart-madvise-collector: tracked process and address, pid: %d, counter: %d\n", pid, current_pid_info->access_count);
+            // pr_info("smart-madvise-collector: tracked process and address, pid: %d, counter: %d\n", pid, current_pid_info->access_count);
             // DO STH HERE
-            if(current_pid_info->access_count > 1000){
-                pr_info("smart-madvise: switching to MADV_SEQUENTIAL, deregistering PID %d\n", pid);
-                add_task(&task_map_global, current_pid_info->pid, current_pid_info->start_address_collect, current_pid_info->length_collect, SMART_MADVISE_TASK_MADVISE, 2);
-                current_pid_info->tracked = false;
+            switch(current_pid_info->state) {
+                case SMART_MADVISE_STATE_INITIAL:
+                    if(current_pid_info->access_count > 1000){
+                        pr_info("smart-madvise: switching to MADV_SEQUENTIAL, deregistering PID %d\n", pid);
+                        add_task(&task_map_global, current_pid_info->pid, current_pid_info->start_address_collect, current_pid_info->length_collect, SMART_MADVISE_TASK_MADVISE, 2);
+                        current_pid_info->state = SMART_MADVISE_STATE_SEQUENTIAL;
+                    }
+                    break;
+                default:
+                    break;
             }
+            
         }
         pid_data[idx].last_addr = page_addr;
     }
-    printk( "handle_pre_pagefault triggered\n");
+    // printk( "handle_pre_pagefault triggered\n");
 
     return 0;
 }
@@ -68,4 +75,13 @@ void print_pid_data(void) {
                    (unsigned long )pid_data[i].access_count);
         }
     }
+}
+
+void reset_pid_data(struct pid_info *pid_info, pid_t pid, u64 start, size_t length) {
+    pid_info->pid = pid;
+    pid_info->tracked = true;
+    pid_info->start_address_collect = start;
+    pid_info->length_collect = length;
+    pid_info->access_count = 0;
+    pid_info->state = SMART_MADVISE_STATE_INITIAL;
 }

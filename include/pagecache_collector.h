@@ -18,6 +18,13 @@
 
 #define PID_DATA_SIZE 256
 
+enum smart_madvise_state {
+    SMART_MADVISE_STATE_INITIAL,
+    SMART_MADVISE_STATE_SEQUENTIAL,
+    SMART_MADVISE_STATE_RANDOM,
+    // maybe more
+};
+
 struct pid_info {
     bool tracked;
     u64 last_addr;
@@ -25,9 +32,11 @@ struct pid_info {
     u64 start_address_collect;
     size_t length_collect;
     u32 pid;
+    enum smart_madvise_state state;
 };
 
 
+void reset_pid_data(struct pid_info *pid_info, pid_t pid, u64 start, size_t length);
 int hash_pid(u32 pid);
 int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs);
 void print_pid_data(void);

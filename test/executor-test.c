@@ -7,6 +7,7 @@
 #include <bits/mman-linux.h>
 #include <sys/time.h>
 #include <time.h>
+#include <sys/mman.h>
 
 #define IOCTL_DEMO_MAGIC '\x66'
 #define IOCTL_DEMO_VALGET_NUM _IOR(IOCTL_DEMO_MAGIC, 4, int)
@@ -78,6 +79,9 @@ int main(int argc, char *argv[])
             perror("ioctl");
             exit(-1);
         }
+    }
+    else {
+        madvise(memory, SIZE, MADV_RANDOM);
     }
 
     printf("getchar:");

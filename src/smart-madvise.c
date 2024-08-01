@@ -7,8 +7,12 @@
 #include <linux/kprobes.h>
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
+#include <linux/delay.h>
+#include <linux/spinlock.h>
+
 #include "smart_madvise_ioctl.h"
 #include "executor.h"
+#include "pagecache_collector.h"
 #include "global_map.h"
 
 MODULE_AUTHOR("Smart Madvise Group");
@@ -27,9 +31,15 @@ typedef int (*syscall_wrapper)(struct pt_regs *);
 unsigned long sys_call_table_addr;
 syscall_wrapper original_madvise;
 
+// collector global variables
+// pid_t target_pid_collect = -1;
+// unsigned long start_address_collect = 0;
+// size_t length_collect  = 0;
+struct pid_info pid_data[HASH_SIZE];
+
 // other global variables
 global_task_map task_map_global;
-pid_t register_pid;
+// pid_t register_pid;
 
 unsigned long kaddr_lookup_name(const char *fname_raw);
 static int sys_madvise_kprobe_pre_handler(struct kprobe *p, struct pt_regs *regs);
@@ -39,9 +49,37 @@ struct kprobe syscall_kprobe = {
     .pre_handler = sys_madvise_kprobe_pre_handler,
 };
 
+struct kprobe pagecache_kprobe = {
+    .symbol_name = "handle_mm_fault",
+    .pre_handler = handle_pre_pagefault
+};
+
 struct kprobe schdule_kprobe = {
     .symbol_name = "schedule",
     .post_handler = schedule_post_handler,
+};
+
+int smart_madvise_deregister_pid(pid_t pid){
+    int idx = hash_pid(pid);
+    if (pid_data[idx].tracked && pid_data[idx].pid == pid){
+        pr_info("smart-madvise: pid: %d deregistered", pid);
+        pid_data[idx].tracked = false;
+        pid_data[idx].pid = 0;
+        return 0;
+    }
+    return -1;
+}
+
+int exit_pre_hander(struct kprobe *p, struct pt_regs *regs){
+    pid_t pid = current->pid;
+    smart_madvise_deregister_pid(pid);
+    
+    return 0;
+}
+
+struct kprobe exit_kprobe = {
+    .symbol_name = "do_exit",
+    .pre_handler = exit_pre_hander,
 };
 
 unsigned long kaddr_lookup_name(const char *fname_raw)
@@ -160,7 +198,7 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     {
         pid_t new_pid = current->pid;
         printk("register pid %d\n", new_pid);
-        register_pid = new_pid;
+        // register_pid = new_pid;
         smart_madvise_ioctl_args obj;
         unsigned long copied = copy_from_user(&obj, (const void __user *)arg, sizeof(smart_madvise_ioctl_args));
         if (copied)
@@ -170,14 +208,28 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             break;
         }
         printk("start 0x%lX, length %ld\n", obj.start, obj.len);
+        
+        int idx = hash_pid(new_pid);
+        struct pid_info *current_pid_info = &pid_data[idx];
+        if (current_pid_info->tracked && current_pid_info->pid != new_pid){
+            return -EINVAL;
+        }
+        reset_pid_data(current_pid_info, new_pid, obj.start, obj.len);
+        printk("collecting data for pid %d\n", new_pid);
+        // msleep(10000);  // sleeps for the specified number of milliseconds
 
+        // print_pid_data();
+        printk("type is random\n");
         add_task(&task_map_global, new_pid, obj.start, obj.len, SMART_MADVISE_TASK_MADVISE, 1);
         break;
     }
     case IOCTL_DEMO_UNREGISTER_NUM:
     {
-        printk("unregister pid %d\n", register_pid);
-        register_pid = 0;
+        pid_t new_pid = current->pid;
+        printk("unregister pid %d\n", new_pid);
+        if (smart_madvise_deregister_pid(new_pid) != 0){
+            return -EINVAL;
+        }
         break;
     }
     default:
@@ -243,7 +295,7 @@ static int __init my_module_init(void)
     printk("my_module_init\n");
 
     // init some global variables
-    register_pid = 0;
+    // register_pid = 0;
 
     // init task map work
     init_task_map(&task_map_global);
@@ -262,6 +314,23 @@ static int __init my_module_init(void)
         return err;
     }
 
+    printk("Initializing the kprobe module for sequential page faults.\n");
+    memset(pid_data, 0, sizeof(pid_data));
+
+    err =  register_kprobe(&pagecache_kprobe); 
+    if (err)
+    {
+        pr_err("register_kprobe() kprobe failed: %d\n", err);
+        return err;
+    }
+
+    err =  register_kprobe(&exit_kprobe); 
+    if (err)
+    {
+        pr_err("register_kprobe() kprobe failed: %d\n", err);
+        return err;
+    }
+
     // init ioctl work
     alloc_ret = alloc_chrdev_region(&dev, 0, num_of_dev, IOCTL_DEMO_DRIVER_NAME);
     if (alloc_ret)
@@ -271,8 +340,13 @@ static int __init my_module_init(void)
     cdev_ret = cdev_add(&ioctl_demo_cdev, dev, num_of_dev);
     pr_alert("%s driver(major: %d) installed.\n", IOCTL_DEMO_DRIVER_NAME,
              ioctl_demo_major);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+    cls = class_create(THIS_MODULE, IOCTL_DEMO_DEVICE_FILE_NAME);
+#else
     cls = class_create(IOCTL_DEMO_DEVICE_FILE_NAME);
+#endif
     cls->dev_uevent = smart_madvise_uevent;
+
     device_create(cls, NULL, dev, NULL, IOCTL_DEMO_DEVICE_FILE_NAME);
     pr_info("Device created on /dev/%s\n", IOCTL_DEMO_DEVICE_FILE_NAME);
 
@@ -282,6 +356,7 @@ static int __init my_module_init(void)
     original_madvise = ((syscall_wrapper *)sys_call_table_addr)[__NR_madvise];
     printk("original_madvise = %p\n", original_madvise);
 
+  
     return 0;
 error:
     if (cdev_ret == 0)
@@ -298,6 +373,8 @@ static void __exit my_module_exit(void)
     // kprobe work
     unregister_kprobe(&syscall_kprobe);
     unregister_kprobe(&schdule_kprobe);
+    unregister_kprobe(&pagecache_kprobe);
+    unregister_kprobe(&exit_kprobe);
 
     // ioctl work
     dev_t dev = MKDEV(ioctl_demo_major, 0);

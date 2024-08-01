@@ -1,10 +1,12 @@
 #include <asm/ptrace.h>
 #include "executor.h"
 #include "global_map.h"
+#include "pagecache_collector.h"
 
 typedef int (*syscall_wrapper)(struct pt_regs *);
 
-extern pid_t register_pid;
+// extern pid_t register_pid;
+extern struct pid_info pid_data[HASH_SIZE];
 extern global_task_map task_map_global;
 extern syscall_wrapper original_madvise;
 
@@ -14,10 +16,13 @@ static void execute_mlock(task_item *task_ptr);
 
 void schedule_post_handler(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
 {
-    if (current->pid == register_pid)
-    {
-        printk("schedule to register_pid %d\n", register_pid);
-        task_item_node *list = get_task_list(&task_map_global, register_pid);
+    pid_t pid = current->pid; 
+    int idx = hash_pid(pid);
+    struct pid_info *current_pid_info = &pid_data[idx];
+
+    if (current_pid_info->tracked && current_pid_info->pid == pid) {
+        // printk("schedule to register_pid %d\n", register_pid);
+        task_item_node *list = get_task_list(&task_map_global, pid);
         execute_task_list(list);
         release_task_list(list);
     }
@@ -57,7 +62,7 @@ static void execute_madvise(task_item *task_ptr)
     regs.si = task_ptr->len;
     regs.dx = task_ptr->task_flag;
     int result = original_madvise(&regs);
-    printk("execute_madvise, di 0x%lX, si %ld, dx %ld, result %d\n", regs.di, regs.si, regs.dx, result);
+    pr_info("smart-madvise: execute_madvise, di 0x%lX, si %ld, dx %d, result %d\n", regs.di, regs.si, regs.dx, result);
 }
 
 static void execute_mlock(task_item *task_ptr)

@@ -2,7 +2,6 @@
 #define GLOBAL_MAP_H
 #include <asm/ptrace.h>
 #include <linux/mutex.h>
-
 typedef enum __task_class
 {
     SMART_MADVISE_TASK_MADVISE,

@@ -12,7 +12,7 @@
 #include "global_map.h"
 
 // change stat threshold
-#define SEQ_THRESHOLD 100
+#define SEQ_THRESHOLD 200
 // extern pid_t target_pid_collect;
 // extern unsigned long start_address_collect;
 // extern size_t length_collect;
@@ -47,11 +47,13 @@ int handle_pre_pagefault(struct kprobe *p, struct pt_regs *regs) {
             if (current_pid_info->last_addr + 1 == page_addr) {
 
                 current_pid_info->seq_access_count++;
-                // if (current_pid_info->seq_access_count !=1)
-                //     pr_info("seq counter: %d\n", current_pid_info->seq_access_count);
+                if (current_pid_info->seq_access_count !=1)
+                    pr_info("seq counter: %d\n", current_pid_info->seq_access_count);
             }
               else{
             current_pid_info->rand_access_count++;
+            if (current_pid_info->rand_access_count !=1)
+                pr_info("rand counter: %d\n", current_pid_info->rand_access_count);
         }
             // pr_info("smart-madvise-collector: tracked process and address, pid: %d, counter: %d\n", pid, current_pid_info->seq_access_count);
             // DO STH HERE

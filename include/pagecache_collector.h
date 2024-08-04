@@ -37,6 +37,7 @@ struct pid_info {
 };
 
 extern struct list_head pid_data_list[1]; // maybe add multiple priotity levels
+extern spinlock_t pid_data_list_lock;
 
 void reset_pid_data(struct pid_info *pid_info, pid_t pid, u64 start, size_t length);
 int hash_pid(u32 pid);

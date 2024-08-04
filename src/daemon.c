@@ -11,10 +11,12 @@ int smart_madvise_daemon(void *data)
 	while (!kthread_should_stop()) {
 		struct list_head *pos;
 		struct pid_info *pid_info;
+		spin_lock(&pid_data_list_lock);
 		list_for_each(pos, &pid_data_list[0]) {
 			pid_info = list_entry(pos, struct pid_info, list_node);
 			pr_info("smart-madvise: pid %d, access count %llu\n", pid_info->pid, pid_info->access_count);
 		}
+		spin_unlock(&pid_data_list_lock);
 		// pr_info("smart-madvise: daemon running\n");
 		msleep(1000);
 	}

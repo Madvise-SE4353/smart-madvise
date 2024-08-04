@@ -38,6 +38,7 @@ syscall_wrapper original_madvise;
 // size_t length_collect  = 0;
 struct pid_info pid_data[HASH_SIZE];
 struct list_head pid_data_list[1];
+struct spinlock pid_data_lock;
 
 // other global variables
 global_task_map task_map_global;
@@ -61,21 +62,24 @@ struct kprobe schdule_kprobe = {
     .post_handler = schedule_post_handler,
 };
 
-int smart_madvise_deregister_pid(pid_t pid){
+int smart_madvise_unregister_pid(pid_t pid){
     int idx = hash_pid(pid);
+    spin_lock(&pid_data_lock);
     if (pid_data[idx].tracked && pid_data[idx].pid == pid){
         pr_info("smart-madvise: pid: %d deregistered", pid);
         pid_data[idx].tracked = false;
         pid_data[idx].pid = 0;
         list_del(&pid_data[idx].list_node);
+        spin_unlock(&pid_data_lock);
         return 0;
     }
+    spin_unlock(&pid_data_lock);
     return -1;
 }
 
 int exit_pre_hander(struct kprobe *p, struct pt_regs *regs){
     pid_t pid = current->pid;
-    smart_madvise_deregister_pid(pid);
+    smart_madvise_unregister_pid(pid);
     
     return 0;
 }
@@ -213,13 +217,14 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         printk("start 0x%lX, length %ld\n", obj.start, obj.len);
         
         int idx = hash_pid(new_pid);
+        spin_lock(&pid_data_lock);
         struct pid_info *current_pid_info = &pid_data[idx];
         if (current_pid_info->tracked && current_pid_info->pid != new_pid){
             return -EINVAL;
         }
-        // TODO: concurrency control
         reset_pid_data(current_pid_info, new_pid, obj.start, obj.len);
         list_add(&current_pid_info->list_node, &pid_data_list[0]);
+        spin_unlock(&pid_data_lock);
         printk("collecting data for pid %d\n", new_pid);
         // msleep(10000);  // sleeps for the specified number of milliseconds
 
@@ -232,7 +237,7 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     {
         pid_t new_pid = current->pid;
         printk("unregister pid %d\n", new_pid);
-        if (smart_madvise_deregister_pid(new_pid) != 0){
+        if (smart_madvise_unregister_pid(new_pid) != 0){
             return -EINVAL;
         }
         break;
@@ -302,6 +307,7 @@ static int __init my_module_init(void)
 
     // init some global variables
     // register_pid = 0;
+    spin_lock_init(&pid_data_lock);
 
     // init task map work
     for (int i=0; i<1; i++) {
@@ -383,6 +389,8 @@ error:
 static void __exit my_module_exit(void)
 {
     printk("my_module_exit\n");
+
+    spin_lock(&pid_data_lock);
 
     // daemon work
     smart_madvise_stop_daemon();

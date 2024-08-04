@@ -14,6 +14,7 @@
 #include "executor.h"
 #include "pagecache_collector.h"
 #include "global_map.h"
+#include "daemon.h"
 
 MODULE_AUTHOR("Smart Madvise Group");
 MODULE_DESCRIPTION("Smart Madvise");
@@ -36,6 +37,7 @@ syscall_wrapper original_madvise;
 // unsigned long start_address_collect = 0;
 // size_t length_collect  = 0;
 struct pid_info pid_data[HASH_SIZE];
+struct list_head pid_data_list[1];
 
 // other global variables
 global_task_map task_map_global;
@@ -65,6 +67,7 @@ int smart_madvise_deregister_pid(pid_t pid){
         pr_info("smart-madvise: pid: %d deregistered", pid);
         pid_data[idx].tracked = false;
         pid_data[idx].pid = 0;
+        list_del(&pid_data[idx].list_node);
         return 0;
     }
     return -1;
@@ -214,7 +217,9 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         if (current_pid_info->tracked && current_pid_info->pid != new_pid){
             return -EINVAL;
         }
+        // TODO: concurrency control
         reset_pid_data(current_pid_info, new_pid, obj.start, obj.len);
+        list_add(&current_pid_info->list_node, &pid_data_list[0]);
         printk("collecting data for pid %d\n", new_pid);
         // msleep(10000);  // sleeps for the specified number of milliseconds
 
@@ -292,12 +297,16 @@ static int __init my_module_init(void)
     dev_t dev;
     int alloc_ret = -1;
     int cdev_ret = -1;
+    int daemon_ret = -1;
     printk("my_module_init\n");
 
     // init some global variables
     // register_pid = 0;
 
     // init task map work
+    for (int i=0; i<1; i++) {
+        INIT_LIST_HEAD(&pid_data_list[i]);
+    }
     init_task_map(&task_map_global);
 
     // init kprobe work
@@ -356,7 +365,12 @@ static int __init my_module_init(void)
     original_madvise = ((syscall_wrapper *)sys_call_table_addr)[__NR_madvise];
     printk("original_madvise = %p\n", original_madvise);
 
-  
+    daemon_ret = smart_madvise_start_daemon();
+    if (daemon_ret != 0) {
+        pr_err("smart-madvise: failed to start daemon\n");
+        goto error;
+    }
+
     return 0;
 error:
     if (cdev_ret == 0)
@@ -369,6 +383,9 @@ error:
 static void __exit my_module_exit(void)
 {
     printk("my_module_exit\n");
+
+    // daemon work
+    smart_madvise_stop_daemon();
 
     // kprobe work
     unregister_kprobe(&syscall_kprobe);

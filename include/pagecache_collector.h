@@ -33,8 +33,10 @@ struct pid_info {
     size_t length_collect;
     u32 pid;
     enum smart_madvise_state state;
+    struct list_head list_node;
 };
 
+extern struct list_head pid_data_list[1]; // maybe add multiple priotity levels
 
 void reset_pid_data(struct pid_info *pid_info, pid_t pid, u64 start, size_t length);
 int hash_pid(u32 pid);

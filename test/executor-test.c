@@ -14,7 +14,7 @@
 #define IOCTL_DEMO_REGISTER_NUM _IOR(IOCTL_DEMO_MAGIC, 5, int)
 #define IOCTL_DEMO_UNREGISTER_NUM _IOR(IOCTL_DEMO_MAGIC, 6, int)
 #define PAGE_SIZE 4096 // Define the typical page size for x86/x86_64
-
+#define BIGFILE_GB 1
 /*
  * fallocate -l 1G ./bigFile-1G
  * sudo bash -c "sync && echo 3 > /proc/sys/vm/drop_caches"
@@ -62,7 +62,7 @@ typedef struct __smart_madvise_ioctl_args
     void *user_semantics;
 } smart_madvise_ioctl_args;
 
-size_t SIZE = (size_t)1 * (size_t)1024 * (size_t)1024 * (size_t)1024;
+size_t SIZE = (size_t)BIGFILE_GB * (size_t)1024 * (size_t)1024 * (size_t)1024;
 
 int main(int argc, char *argv[])
 {
@@ -126,24 +126,25 @@ int main(int argc, char *argv[])
     getchar();
     printf("sleep 1\n");
     sleep(1);
-    printf("sleep 2\n");
-    sleep(1);
+    // printf("sleep 2\n");
+    // sleep(1);
 
     // access memory
-    long starttime, endtime;
+     long starttime, endtime;
     long nSum = 0;
     long *pp = (long *)memory;
     size_t it_num = SIZE / sizeof(long);
-      // printf("Dropping caches...\n");
-      TIMER(starttime);
+    TIMER(starttime);
     for (size_t i = 0; i < it_num; i++)
     {
         nSum += *pp;
         pp++;
     }
     TIMER(endtime);
-    printf("Dropping caches...\n");
-    drop_caches();
+    printf("Sequential read %s-madvise: %ld ms \n", (smart_madvise_type ? "w" : "w/o"), endtime - starttime);
+
+      printf("Dropping caches...\n");
+      drop_caches();
 
     printf("Random read\n");
       printf("getchar:");

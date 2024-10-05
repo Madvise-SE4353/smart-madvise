@@ -10,25 +10,23 @@ all:
 clean:
 	make -C /lib/modules/$(KVERSION)/build M=$(shell pwd) clean
 
-# build-collector:
-# 	@echo "Building the kernel modules..."
-# 	$(MAKE) -C /lib/modules/$(KVERSION)/build M=$(shell pwd) modules
-
-# clean-collector:
-# 	@echo "Cleaning up build artifacts..."
-# 	$(MAKE) -C /lib/modules/$(KVERSION)/build M=$(shell pwd) clean
-
 install:
 	@echo "Installing the kernel modules..."
-	sudo insmod smart-madvise.ko
+	if ! lsmod | grep -q smart_madvise; then \
+		sudo insmod smart-madvise.ko; \
+	else \
+		echo "smart_madvise module is already loaded."; \
+	fi
 
 remove:
 	@echo "Removing the kernel modules..."
-	sudo rmmod smart_madvise
+	if lsmod | grep -q smart_madvise; then \
+		sudo rmmod smart_madvise; \
+	else \
+		echo "smart_madvise module is not loaded."; \
+	fi
 
 deploy:
 	$(MAKE) all
 	$(MAKE) remove
 	$(MAKE) install
-
-# .PHONY: build-collector clean-collector install-collector remove-collector

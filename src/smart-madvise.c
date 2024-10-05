@@ -219,8 +219,8 @@ smart_madvise_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         // msleep(10000);  // sleeps for the specified number of milliseconds
 
         // print_pid_data();
-        printk("type is random\n");
-        add_task(&task_map_global, new_pid, obj.start, obj.len, SMART_MADVISE_TASK_MADVISE, 1);
+        // printk("type is random\n");
+        // add_task(&task_map_global, new_pid, obj.start, obj.len, SMART_MADVISE_TASK_MADVISE, 1);
         break;
     }
     case IOCTL_DEMO_UNREGISTER_NUM:
@@ -280,11 +280,15 @@ static struct file_operations fops = {
     .unlocked_ioctl = smart_madvise_ioctl,
 };
 
-static int smart_madvise_uevent(const struct device *dev, struct kobj_uevent_env *env)
-{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+static int smart_madvise_uevent(struct device *dev, struct kobj_uevent_env *env) {
     add_uevent_var(env, "DEVMODE=%#o", 0666);
-    return 0;
-}
+    return 0;}
+#else
+static int smart_madvise_uevent(const struct device *dev, struct kobj_uevent_env *env) {
+    add_uevent_var(env, "DEVMODE=%#o", 0666);
+    return 0;}
+#endif
 
 static int __init my_module_init(void)
 {

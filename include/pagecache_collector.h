@@ -24,11 +24,19 @@ enum smart_madvise_state {
     SMART_MADVISE_STATE_RANDOM,
     // maybe more
 };
+enum smart_madvise_type {
+    SMART_MADVISE_NORMAL = 0,
+    SMART_MADVISE_RANDOM = 1,
+    SMART_MADVISE_SEQUENTIAL = 2
+};
+// define  madvise type map, initial is 0, sequential is 2, random is 1
+
 
 struct pid_info {
     bool tracked;
     u64 last_addr;
-    u64 access_count;
+    u64 seq_access_count;
+    u64 rand_access_count;
     u64 start_address_collect;
     size_t length_collect;
     u32 pid;
